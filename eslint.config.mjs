@@ -7,11 +7,23 @@ import globals from 'globals';
 import tsParser from '@typescript-eslint/parser';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { builtinModules } from 'node:module';
 import js from '@eslint/js';
 import { FlatCompat } from '@eslint/eslintrc';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+// Node.js built-ins must be imported with the `node:` prefix in the library
+// source, otherwise bundlers may resolve a userland package with the same name
+// from node_modules instead (e.g. the `net` npm package).
+// https://github.com/taskforcesh/bullmq/issues/5001
+const bareBuiltinImports = builtinModules
+  .filter(name => !name.startsWith('_'))
+  .map(name => ({
+    name,
+    message: `Use 'node:${name}' instead of '${name}'.`,
+  }));
+
 const compat = new FlatCompat({
   baseDirectory: __dirname,
   recommendedConfig: js.configs.recommended,
@@ -131,6 +143,18 @@ export default defineConfig([
       ],
 
       'tsdoc/syntax': 'error',
+    },
+  },
+  {
+    files: ['src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: bareBuiltinImports,
+          patterns: ['src/*'],
+        },
+      ],
     },
   },
 ]);
